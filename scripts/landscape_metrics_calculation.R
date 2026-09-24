@@ -1,8 +1,9 @@
+source("scripts/source_functions.R")
 # install.packages("sf")
 library(sf)
+sf_use_s2(FALSE)
 # install.packages("terra")
 library(terra)
-source("scripts/source_functions.R")
 
 # pol_bind = vect("dataset/spatial/trees_gsat_bel.kml")
 # pol_bind
@@ -37,6 +38,48 @@ br_crop = rast("dataset/spatial/brazil_coverage-col4_10m_2025.tif")
 plot(br_crop)
 tree_simple = vect("dataset/spatial/simple_trees.shp")
 plot(tree_simple[1:50000,])
+park_bel = read_sf("dataset/spatial/praças_belem.kml")
+park_ana = read_sf("dataset/spatial/praças_ananindeua.kml")
+plot(park_bel$geometry)
+plot(park_ana$geometry,add=T)
+park_bel = park_bel[st_geometry_type(park_bel) == "POLYGON",]
+park_ana = park_ana[st_geometry_type(park_ana) == "POLYGON",]
+parks = rbind(park_bel,park_ana)
+par(mar = c(0,0,0,0))
+plot(parks$geometry)
 
 # install.packages("landscapemetrics")
 library(landscapemetrics)
+# install.packages("ggplot2")
+library(ggplot2)
+
+# Criar um grid de pontos para calcular as métricas da paisagem -----
+tree_simple = st_as_sf(tree_simple)
+tree_t = st_transform(tree_simple, crs = 31982)
+
+library(raster)
+r.raster <- raster()  
+extent(r.raster) <- extent(tree_t) # set extent to match the tree_simple object
+res(r.raster) <- 10 # set cell size to 1000 metres
+tree_simple$ID = 3
+tree_simple.r <- terra::rasterize(tree_simple, r.raster, field = "ID") # rasterize the tree_simple object
+
+tree_c = st_centroid(tree_t)
+tree_c
+
+parks_c = st_centroid(parks)
+parks_c
+parks_c = st_transform(parks_c, crs = 31982)
+plot(parks_c$geometry)
+
+bufs = c(100,500,1000,2000,5000)
+
+bufz = st_buffer(parks_c, dist = bufs[1])
+plot(bufz$geometry)
+
+##  Probability of connectivity -----
+# install.packages("remotes")
+#remotes::install_github("connectscape/Makurhini")
+library(Makurhini)
+
+save.image(".RData")
