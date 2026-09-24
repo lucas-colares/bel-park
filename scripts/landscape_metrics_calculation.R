@@ -1,6 +1,8 @@
+# install.packages("sf")
 library(sf)
+# install.packages("terra")
 library(terra)
-source("source")
+source("scripts/source_functions.R")
 
 # pol_bind = vect("dataset/spatial/trees_gsat_bel.kml")
 # pol_bind
@@ -34,3 +36,7 @@ source("source")
 br_crop = rast("dataset/spatial/brazil_coverage-col4_10m_2025.tif")
 plot(br_crop)
 tree_simple = vect("dataset/spatial/simple_trees.shp")
+plot(tree_simple[1:50000,])
+
+# install.packages("landscapemetrics")
+library(landscapemetrics)
