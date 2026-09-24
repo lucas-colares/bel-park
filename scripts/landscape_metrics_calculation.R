@@ -61,8 +61,8 @@ library(raster)
 r.raster <- raster()  
 extent(r.raster) <- extent(tree_t) # set extent to match the tree_simple object
 res(r.raster) <- 10 # set cell size to 1000 metres
-tree_simple$ID = 3
-tree_simple.r <- terra::rasterize(tree_simple, r.raster, field = "ID") # rasterize the tree_simple object
+tree_t$ID = 3
+#tree_simple.r <- terra::rasterize(tree_t, r.raster, field = "ID") # rasterize the tree_simple object
 
 tree_c = st_centroid(tree_t)
 tree_c
@@ -72,14 +72,55 @@ parks_c
 parks_c = st_transform(parks_c, crs = 31982)
 plot(parks_c$geometry)
 
-bufs = c(100,500,1000,2000,5000)
+bufs = c(100,500,1000)
 
-bufz = st_buffer(parks_c, dist = bufs[1])
+bufz = st_buffer(parks_c, dist = bufs[3])
 plot(bufz$geometry)
+
+bufz_t = st_transform(bufz,4326)
+ld_crop = crop(br_crop,bufz_t[1,],mask=T)
+tree_crop = st_intersection(tree_simple,bufz_t[1,])
+plot(ld_crop)
+plot(tree_crop$geometry,add=TRUE,col="green")
+
+# Match the vector CRS to the raster
+tree_vect <- vect(tree_crop)
+
+# 1 = tree present; 0 = no tree
+tree_layer <- terra::rasterize(
+  tree_vect,
+  ld_crop[[1]],
+  field = 3,
+  background = 0,
+  touches = TRUE
+)
+
+# Keep NA outside the cropped study area
+tree_layer <- mask(tree_layer, ld_crop[[1]])
+names(tree_layer) <- "tree_presence"
+ld_crop[!is.na(values(tree_layer))&values(tree_layer)==3] = 3
+# Add it as a new raster layer
+plot(ld_crop)
 
 ##  Probability of connectivity -----
 # install.packages("remotes")
 #remotes::install_github("connectscape/Makurhini")
 library(Makurhini)
+ld_new = ld_crop
+ld_new[!is.na(values(ld_new))&values(ld_new)!=3] = NA
+ld_new = as.polygons(ld_new)
+ld_new = st_cast(st_as_sf(ld_new), "POLYGON", do_split = TRUE)
+ld_new$ID = 1:nrow(ld_new)
+ld_dist = st_distance(st_centroid(ld_new))
+
+PC = MK_dPCIIC(ld_new,  metric = c("PC"), area_unit = "m2",overall =TRUE,onlyoverall=TRUE,distance = list(type = "centroid"),distance_thresholds = c(10,50,100,500))
+PC
+
+library(ggplot2)
+ggplot()+
+  geom_sf(data = PC,aes(fill=log(dPC+1)))+
+  scale_fill_viridis_c()
+
+plot(PC$d20000$node_importances_d20000["dIICconnector"], breaks = "jenks")
 
 save.image(".RData")
