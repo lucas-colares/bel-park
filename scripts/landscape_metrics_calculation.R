@@ -1,126 +1,104 @@
-source("scripts/source_functions.R")
-# install.packages("sf")
+# LEI/COMBIO Reunião de análise de dados 
+# Dia: 24/09/2026
+# Autores: Lucas, Edison, Ivan, Vini, Sufyan, Catarina, Aléxia, Amanda, Fábio, Marina
+
+# O library é a função que carrega um pacote no R.
+# O pacote sf é usado para manipulação de dados espaciais no R.
 library(sf)
-sf_use_s2(FALSE)
-# install.packages("terra")
+
+# O pacote terra também é usado para manipulação de dados espaciais, mas ele é mais otimizado para grandes datasets 
 library(terra)
 
-# pol_bind = vect("dataset/spatial/trees_gsat_bel.kml")
-# pol_bind
-# tree_simple = terra::simplifyGeom(pol_bind,tolerance=0.5,preserveTopology=TRUE, makeValid=TRUE)
-# writeVector(tree_simple,"dataset/spatial/simple_trees.shp")
-# buffer(tree_simple,10)
+# O argumento da função rast é o diretório do arquivo raster, o qual precisa estar entre aspas
+# Necessário criar um objeto para salvar no repositório
+rast_bel = rast("dataset/spatial/brazil_coverage-col4_10m_2025.tif")
+plot(rast_bel)
 
-# br = rast("dataset/spatial/brazil_coverage-col4_10m_2025.tif")
-# PA = vect("dataset/spatial/PA_Municipios_2025/PA_Municipios_2025.shp")
-# PA_SEL = PA[PA$NM_MUN=="Belém"|PA$NM_MUN=="Ananindeua",]
-# extentz = ext(buffer(PA_SEL,5000))
-# br_crop = crop(br,extentz)
-# plot(br_crop)
-# writeRaster(br_crop,"dataset/spatial/brazil_coverage-col4_10m_2025.tif",overwrite=T)
+# Para salvar resultados, cria-se objetos/variáveis como simple_tree e rast_bel
 
-## What does a point need? To be inside a park or/and a tree
-## Interesting predictors:
-##    01. Tree density per park / per point (Lucas)
-##    02. Distance to the nearest tree (Lucas)
-##    03. Area of the nearest tree (Lucas)
-##    04. Probability of connectivity (Lucas)
-##    05. Integral index of connectivity (Lucas)
-##    06. Minimum Cumulative Resistance (Lucas)
-##    07. Patch/park density
-##    08. Patch/park size
-##    09. Land cover proportion
-##    10. Patch/park edge density
-##    11. Distance from source habitat
-##    12. Distance to the nearest patch/park
+# O argumento da função vect é o diretório do arquivo shapefile, o qual precisa estar entre aspas.
+simple_tree = vect("dataset/spatial/simple_trees.shp")
 
-br_crop = rast("dataset/spatial/brazil_coverage-col4_10m_2025.tif")
-plot(br_crop)
-tree_simple = vect("dataset/spatial/simple_trees.shp")
-plot(tree_simple[1:50000,])
-park_bel = read_sf("dataset/spatial/praças_belem.kml")
-park_ana = read_sf("dataset/spatial/praças_ananindeua.kml")
-plot(park_bel$geometry)
-plot(park_ana$geometry,add=T)
-park_bel = park_bel[st_geometry_type(park_bel) == "POLYGON",]
-park_ana = park_ana[st_geometry_type(park_ana) == "POLYGON",]
-parks = rbind(park_bel,park_ana)
-par(mar = c(0,0,0,0))
-plot(parks$geometry)
+#Um arquivo KML (Keyhole Markup Language) é um formato baseado em XML usado para armazenar
+# e exibir dados geográficos, como pontos, linhas, polígonos e imagens em softwares de mapas.
+bel_park = vect("dataset/spatial/praças_belem.kml")
+plot(bel_park)
 
-# install.packages("landscapemetrics")
-library(landscapemetrics)
-# install.packages("ggplot2")
-library(ggplot2)
+ana_park = vect("dataset/spatial/praças_ananindeua.kml")
+plot(ana_park)
 
-# Criar um grid de pontos para calcular as métricas da paisagem -----
-tree_simple = st_as_sf(tree_simple)
-tree_t = st_transform(tree_simple, crs = 31982)
+# Transformar o formato do arquivo, pois a função st_centroid faz parte da 
+# library sf e não aceita o formato SpatVector gerado pela library terra
+bel_t = st_as_sf(bel_park)
+bel_park
+bel_t
 
-library(raster)
-r.raster <- raster()  
-extent(r.raster) <- extent(tree_t) # set extent to match the tree_simple object
-res(r.raster) <- 10 # set cell size to 1000 metres
-tree_t$ID = 3
-#tree_simple.r <- terra::rasterize(tree_t, r.raster, field = "ID") # rasterize the tree_simple object
+# A função st_centroid calcula o centroide de um objeto espacial, 
+# que é o ponto médio de uma geometria. O centroide é útil para 
+# representar a localização central de um polígono ou linha.
+bel_c = st_centroid(bel_t)
+plot(bel_c)
 
-tree_c = st_centroid(tree_t)
-tree_c
-
-parks_c = st_centroid(parks)
-parks_c
-parks_c = st_transform(parks_c, crs = 31982)
-plot(parks_c$geometry)
-
+# Função c(concatenar): Une diversos textos/números dentro de uma mesma saída / objeto / variável
 bufs = c(100,500,1000)
 
-bufz = st_buffer(parks_c, dist = bufs[3])
-plot(bufz$geometry)
+# O pacote landscapemetrics é utilizado para calcular métricas de paisagem
+# install.packages("landscapemetrics") para fazer instalação do pacote
+# caso ainda não esteja instalado no ambiente; só é necessário rodar uma vez
+library(landscapemetrics)
 
-bufz_t = st_transform(bufz,4326)
-ld_crop = crop(br_crop,bufz_t[1,],mask=T)
-tree_crop = st_intersection(tree_simple,bufz_t[1,])
-plot(ld_crop)
-plot(tree_crop$geometry,add=TRUE,col="green")
+# função st_transform é utilizada para transformarmos um arquivo contendo coordenadas de um sistema para outro, nesse caso, de 
+# WGS 84 para UTM. 
+# primeiro argumento é qual arquivo / variável / objeto queremos modificar, o segundo é o sistema de medida
+bel_c = st_transform(bel_c, crs = 31982) # CRS é o código EPSG do sistema de coordenadas
 
-# Match the vector CRS to the raster
-tree_vect <- vect(tree_crop)
+# função usada para identificar o sistema de coordenadas (crs) usado naquele objeto / variável
+st_crs(bel_c)
 
-# 1 = tree present; 0 = no tree
-tree_layer <- terra::rasterize(
-  tree_vect,
-  ld_crop[[1]],
-  field = 3,
-  background = 0,
-  touches = TRUE
-)
+# função usada para calcular o buffer para os centroides. Ela calcula apenas um tamanho por vez, então determinamos qual
+# queremos em "dist".
+buf1 = st_buffer(bel_c, dist = bufs[3]) # Como criamos um objeto com três tamanhos de buffer, ao invés de determinar o número, determinamos qual queremos dentro do objeto
 
-# Keep NA outside the cropped study area
-tree_layer <- mask(tree_layer, ld_crop[[1]])
-names(tree_layer) <- "tree_presence"
-ld_crop[!is.na(values(tree_layer))&values(tree_layer)==3] = 3
-# Add it as a new raster layer
-plot(ld_crop)
+# o elemento "$" serve para selecionar uma ou mais colunas específicas para a plotagem do gráfico, ou criar uma coluna nova
+plot(buf1$geometry)
+buf1
 
-##  Probability of connectivity -----
-# install.packages("remotes")
-#remotes::install_github("connectscape/Makurhini")
-library(Makurhini)
-ld_new = ld_crop
-ld_new[!is.na(values(ld_new))&values(ld_new)!=3] = NA
-ld_new = as.polygons(ld_new)
-ld_new = st_cast(st_as_sf(ld_new), "POLYGON", do_split = TRUE)
-ld_new$ID = 1:nrow(ld_new)
-ld_dist = st_distance(st_centroid(ld_new))
+buf1_t = st_transform(buf1, crs = 4326) # Transformando o sistema de coordenadas de volta para WGS 84
 
-PC = MK_dPCIIC(ld_new,  metric = c("PC"), area_unit = "m2",overall =TRUE,onlyoverall=TRUE,distance = list(type = "centroid"),distance_thresholds = c(10,50,100,500))
-PC
+# Função para recortar uma área especifica. 
+cropped = crop(rast_bel,buf1_t[1,],mask=TRUE) #"[]" para especificar um valor / posição na lista. "," separa entre linhas e colunas, antes da virgula são linhas, depois da virgula são colunas.
+plot(cropped)
 
-library(ggplot2)
-ggplot()+
-  geom_sf(data = PC,aes(fill=log(dPC+1)))+
-  scale_fill_viridis_c()
+# Função que calcula cobertura e uso do solo
+land_prop = lsm_c_pland(cropped)
+land_prop
 
-plot(PC$d20000$node_importances_d20000["dIICconnector"], breaks = "jenks")
+# Identificar o número de linhas / buffers
+nrow(buf1_t)
 
-save.image(".RData")
+# Cria uma lista vazia
+lista_vazia = list()
+# Loop: vamos repetir a função anterior várias vezes
+
+bufs
+for(y in bufs){
+  buf1 = st_buffer(bel_c, dist = y) # Como criamos um objeto com três tamanhos de buffer, ao invés de determinar o número, determinamos qual queremos dentro do objeto
+  buf1_t = st_transform(buf1, crs = 4326) # Transformando o sistema de coordenadas de volta para WGS 84
+  print(paste("Calculando métricas para buffer de",y,"metros")) # Função print() serve para mostrar o que está acontecendo no loop, e a função paste() serve para concatenar textos e variáveis
+  for(x in 1:nrow(buf1_t)){ #nrow(buf1_t) faz com que ele repita a função na mesma quantidade de linhas que temos no nosso objeto
+    cropped = crop(rast_bel,buf1_t[x,],mask=TRUE) #"[]" para especificar um valor / posição na lista. "," separa entre linhas e colunas, antes da virgula são linhas, depois da virgula são colunas.
+    land_prop = lsm_c_pland(cropped)
+    land_prop$id_park = x 
+    land_prop$escala = y   
+    lista_vazia[[x]] = land_prop
+  }
+}
+
+planilha_final = do.call(rbind, lista_vazia) # Função que junta todas as listas criadas em uma só
+
+planilha_final
+
+# Para salvar em uma planilha; possui dois argumentos, o primeiro é o que queremos  
+# salvar como planilha e o segundo é o destino (pasta) em que o arquivo será salvo
+write.csv(planilha_final,"dataset/planilha_paisagem.csv")
+
